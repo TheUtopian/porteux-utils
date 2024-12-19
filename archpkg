@@ -1,22 +1,36 @@
 #!/bin/python
 
-# Utility to download packages from Official Arch repository 
-# and automatically creating resulting "xzm" module from them.
-
-import sys
 import json
 import requests
+import argparse
+import subprocess
 
 ARCH_URL = 'https://archlinux.org/packages/'
 
-pkg = 'ncdu'
-pkg_req = requests.get(ARCH_URL + 'search/json/?name=' + pkg)
+parser = argparse.ArgumentParser(
+    prog='archpkg',
+    description='Utility to download packages from Official Arch repository \
+            and automatically creating resulting "xzm" module from them.'
+)
 
-if pkg_req.ok:
-    pkg_json = pkg_req.json()
-    res = pkg_json['results'][0]
-    pkg_repo = res['repo']
-    pkg_arch = res['arch']
-    pkg_name = res['pkgname']
-    pkg_url = ARCH_URL + pkg_repo + '/' + pkg_arch + '/' + pkg_name + '/download';
-    print(pkg_url)
+parser.add_argument('packages', nargs='+')
+parser.add_argument('-d','--deps', default=0, type=int)
+parser.add_argument('-x','--xzm')
+
+args = parser.parse_args()
+
+pkgs = list()
+
+for pkg in args.packages:
+    pkg_req = requests.get(ARCH_URL + 'search/json/?name=' + pkg)
+
+    if pkg_req.ok:
+        pkg_json = pkg_req.json()
+        res = pkg_json['results'][0]
+        pkg_repo = res['repo']
+        pkg_arch = res['arch']
+        pkg_name = res['pkgname']
+        pkg_url = ARCH_URL + pkg_repo + '/' + pkg_arch + '/' + pkg_name + '/download';
+        pkgs.append(pkg_url)
+
+print(pkgs)
