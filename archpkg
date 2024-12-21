@@ -1,11 +1,37 @@
 #!/bin/python
 
-import json
+import os
 import requests
 import argparse
 import subprocess
 
-ARCH_URL = 'https://archlinux.org/packages/'
+SOURCES = [
+        'https://archlinux.org/packages/',
+        'https://packages.artixlinux.org/packages/'
+]
+
+SRC_URL = SOURCES[1]
+
+def get_packages(name, depth):
+    pkg_req = requests.get(SRC_URL + 'search/json/?name=' + name)
+
+    if pkg_req.ok:
+        json = pkg_req.json()
+        if json['results']:
+            res = json['results'][0]
+            repo = res['repo']
+            arch = res['arch']
+            url = SRC_URL + repo + '/' + arch + '/' + name + '/download'
+
+            l1 = [url]
+            if depth > 0:
+                for x in res['depends']:
+                    l2 = get_packages(x, depth - 1)
+                    if l2:
+                        l1.extend(l1)
+            return l1
+    return None
+
 
 parser = argparse.ArgumentParser(
     prog='archpkg',
@@ -14,23 +40,31 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('packages', nargs='+')
-parser.add_argument('-d','--deps', default=0, type=int)
-parser.add_argument('-x','--xzm')
+parser.add_argument('-d', '--depth', default=0, type=int)
+parser.add_argument('-x', '--xzm')
 
 args = parser.parse_args()
 
-pkgs = list()
+pkg_urls = list()
 
 for pkg in args.packages:
-    pkg_req = requests.get(ARCH_URL + 'search/json/?name=' + pkg)
+    local_pkg_urls = get_packages(pkg, args.depth)
+    if local_pkg_urls:
+        pkg_urls.extend(local_pkg_urls)
 
-    if pkg_req.ok:
-        pkg_json = pkg_req.json()
-        res = pkg_json['results'][0]
-        pkg_repo = res['repo']
-        pkg_arch = res['arch']
-        pkg_name = res['pkgname']
-        pkg_url = ARCH_URL + pkg_repo + '/' + pkg_arch + '/' + pkg_name + '/download';
-        pkgs.append(pkg_url)
+pkg_urls = set(pkg_urls)
 
-print(pkgs)
+build_dir = 'arch-' + '-'.join(args.packages) + '/'
+if not os.path.exists(build_dir):
+    os.mkdir(build_dir)
+
+for url in pkg_urls:
+    pkg_name = url.split('/')[6]
+    pkg_path = build_dir + pkg_name
+    if not os.path.exists(pkg_path):
+        os.mkdir(pkg_path)
+    subprocess.run(['wget', '-O' + pkg_path + '.tar.zst', url])
+    subprocess.run(['zstd', '-d', pkg_path + '.tar.zst'])
+    subprocess.run(['tar', 'xf', pkg_path + '.tar', '-C' + pkg_path])
+    os.remove(pkg_path + '.tar.zst')
+    os.remove(pkg_path + '.tar')
