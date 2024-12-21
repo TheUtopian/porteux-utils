@@ -1,16 +1,31 @@
 #!/bin/python
 
 import os
+import shutil
 import requests
 import argparse
 import subprocess
 
-SOURCES = [
-        'https://archlinux.org/packages/',
-        'https://packages.artixlinux.org/packages/'
-]
+SOURCES = {
+        'arch': 'https://archlinux.org/packages/',
+        'artix': 'https://packages.artixlinux.org/packages/'
+}
 
-SRC_URL = SOURCES[1]
+parser = argparse.ArgumentParser(
+    prog='archpkg',
+    description='Utility to download packages from Official Arch repository \
+            and merge them into one package.'
+)
+
+parser.add_argument('packages', nargs='+')
+parser.add_argument('-d', '--depth', default=0, type=int)
+parser.add_argument('-x', '--xzm', action='store_true')
+parser.add_argument('-s', '--strip', action='store_true')
+parser.add_argument('--src', default='arch', choices=SOURCES.keys())
+
+args = parser.parse_args()
+
+SRC_URL = SOURCES[args.src]
 
 def get_packages(name, depth):
     pkg_req = requests.get(SRC_URL + 'search/json/?name=' + name)
@@ -28,22 +43,9 @@ def get_packages(name, depth):
                 for x in res['depends']:
                     l2 = get_packages(x, depth - 1)
                     if l2:
-                        l1.extend(l1)
+                        l1.extend(l2)
             return l1
     return None
-
-
-parser = argparse.ArgumentParser(
-    prog='archpkg',
-    description='Utility to download packages from Official Arch repository \
-            and automatically creating resulting "xzm" module from them.'
-)
-
-parser.add_argument('packages', nargs='+')
-parser.add_argument('-d', '--depth', default=0, type=int)
-parser.add_argument('-x', '--xzm')
-
-args = parser.parse_args()
 
 pkg_urls = list()
 
@@ -54,9 +56,14 @@ for pkg in args.packages:
 
 pkg_urls = set(pkg_urls)
 
-build_dir = 'arch-' + '-'.join(args.packages) + '/'
+build_dir = args.src + '-' + '-'.join(args.packages) + '/'
 if not os.path.exists(build_dir):
     os.mkdir(build_dir)
+
+r_dir = build_dir + 'result/'
+if os.path.exists(r_dir):
+    shutil.rmtree(r_dir)
+os.mkdir(r_dir)
 
 for url in pkg_urls:
     pkg_name = url.split('/')[6]
@@ -66,5 +73,19 @@ for url in pkg_urls:
     subprocess.run(['wget', '-O' + pkg_path + '.tar.zst', url])
     subprocess.run(['zstd', '-d', pkg_path + '.tar.zst'])
     subprocess.run(['tar', 'xf', pkg_path + '.tar', '-C' + pkg_path])
+    subprocess.run(['rsync', '-au', pkg_path + '/', r_dir])
     os.remove(pkg_path + '.tar.zst')
     os.remove(pkg_path + '.tar')
+
+for x in ['.BUILDINFO', '.MTREE', '.PKGINFO', '.INSTALL']:
+    if os.path.exists(r_dir + x):
+        os.remove(r_dir + x)
+if os.path.exists(r_dir + 'usr/lib'):
+    os.rename(r_dir + 'usr/lib', r_dir + 'usr/lib64')
+if os.path.exists(r_dir + 'lib'):
+    os.rename(r_dir + 'lib', r_dir + 'lib64')
+
+if args.strip:
+    for x in ['man', 'zsh', 'locale', 'i18n', 'locale', 'licenses', 'fish', 'doc']:
+        if os.path.exists(r_dir + 'usr/share/' + x):
+            shutil.rmtree(r_dir + 'usr/share/' + x)
