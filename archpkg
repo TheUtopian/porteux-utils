@@ -1,10 +1,11 @@
-#!/bin/python
+#!/usr/bin/python
 
 import os
+import json
 import shutil
-import requests
 import argparse
 import subprocess
+from urllib.request import urlopen
 
 SOURCES = {
         'arch': 'https://archlinux.org/packages/',
@@ -28,12 +29,10 @@ args = parser.parse_args()
 SRC_URL = SOURCES[args.src]
 
 def get_packages(name, depth):
-    pkg_req = requests.get(SRC_URL + 'search/json/?name=' + name)
-
-    if pkg_req.ok:
-        json = pkg_req.json()
-        if json['results']:
-            res = json['results'][0]
+    with urlopen(SRC_URL + 'search/json/?name=' + name) as res:
+        res_json = json.loads(res.read())
+        if res_json['results']:
+            res = res_json['results'][0]
             repo = res['repo']
             arch = res['arch']
             url = SRC_URL + repo + '/' + arch + '/' + name + '/download'
