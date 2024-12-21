@@ -18,10 +18,10 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('packages', nargs='+')
-parser.add_argument('-d', '--depth', default=0, type=int)
-parser.add_argument('-x', '--xzm', action='store_true')
-parser.add_argument('-s', '--strip', action='store_true')
-parser.add_argument('--src', default='arch', choices=SOURCES.keys())
+parser.add_argument('-d', '--depth', default=0, type=int, help='Dependency depth')
+parser.add_argument('-x', '--xzm', action='store_true', help='Convert resulting package to "xzm" module')
+parser.add_argument('-s', '--strip', action='store_true', help="Remove unnecessary files")
+parser.add_argument('--src', default='arch', choices=SOURCES.keys(), help="Source of packages")
 
 args = parser.parse_args()
 
@@ -56,6 +56,10 @@ for pkg in args.packages:
 
 pkg_urls = set(pkg_urls)
 
+if not len(pkg_urls):
+    print("No packages found")
+    exit()
+
 build_dir = args.src + '-' + '-'.join(args.packages) + '/'
 if not os.path.exists(build_dir):
     os.mkdir(build_dir)
@@ -89,3 +93,11 @@ if args.strip:
     for x in ['man', 'zsh', 'locale', 'i18n', 'locale', 'licenses', 'fish', 'doc']:
         if os.path.exists(r_dir + 'usr/share/' + x):
             shutil.rmtree(r_dir + 'usr/share/' + x)
+
+if args.xzm:
+    subprocess.run(['dir2xzm', r_dir, '-o', './' + args.src + '-' + '-'.join(args.packages) + '.xzm'])
+else:
+    subprocess.run(['tar', '-C' + r_dir, '-cJf', args.src + '-' + '-'.join(args.packages) + '.tar.xz', '.'])
+
+shutil.rmtree(build_dir)
+print('Finished!')
