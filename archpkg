@@ -5,7 +5,7 @@ import json
 import shutil
 import argparse
 import subprocess
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 
 SOURCES = {
         'arch': 'https://archlinux.org/packages/',
@@ -33,7 +33,8 @@ INSTALLED_PKGS = set(
 )
 
 def get_packages(name, depth):
-    with urlopen(SRC_URL + 'search/json/?name=' + name) as res:
+    req = Request(SRC_URL + 'search/json/?name=' + name, headers={'User-Agent': 'Valid Browser'})
+    with urlopen(req) as res:
         res_json = json.loads(res.read())
         if res_json['results']:
             res = res_json['results'][0]
