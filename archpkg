@@ -28,6 +28,10 @@ args = parser.parse_args()
 
 SRC_URL = SOURCES[args.src]
 
+INSTALLED_PKGS = set(
+	map(lambda x: x.split('-')[0], os.listdir('/var/log/packages/'))
+)
+
 def get_packages(name, depth):
     with urlopen(SRC_URL + 'search/json/?name=' + name) as res:
         res_json = json.loads(res.read())
@@ -39,7 +43,7 @@ def get_packages(name, depth):
 
             l1 = [url]
             if depth > 0:
-                for x in res['depends']:
+                for x in list(set(res['depends']) - INSTALLED_PKGS):
                     l2 = get_packages(x, depth - 1)
                     if l2:
                         l1.extend(l2)
